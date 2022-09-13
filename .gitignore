@@ -1,0 +1,9 @@
+*.pyc
+.coverage
+.DS_Store
+.env
+.python-version
+.venv
+*.csv
+logs/*
+!.gitkeep
