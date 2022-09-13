@@ -11,6 +11,33 @@ class IOhlcvGetter:
 
 
 @dataclass
+class NormMakePriceCalculatorConfig:
+    timeperiod: int
+    diff_k: float
+
+
+class NormMakePriceCalculator:
+    def __init__(
+        self,
+        ohlcv_getter: IOhlcvGetter,
+        config: NormMakePriceCalculatorConfig,
+    ):
+        self._ohlcv_getter = ohlcv_getter
+        self._config = config
+
+        self._logger = getLogger(__class__.__name__)
+
+    def ask_bid_prices(self) -> dict:
+        ohlcv_df = self._ohlcv_getter.get_ohlcv_df(min_len=self._config.timeperiod)
+        u = ohlcv_df["cl"].rolling(self._config.timeperiod).mean()
+        s = ohlcv_df["cl"].rolling(self._config.timeperiod).std()
+        diff = s * self._config.diff_k
+        ask_price = u + diff
+        bid_price = u - diff
+        return ask_price, bid_price
+
+
+@dataclass
 class ATRMakePriceCalculatorConfig:
     timeperiod: int
     diff_k: float
@@ -27,7 +54,7 @@ class ATRMakePriceCalculator:
 
         self._logger = getLogger(__class__.__name__)
 
-    async def ask_bid_prices(self):
+    def ask_bid_prices(self):
         ohlcv_df = self._ohlcv_getter.get_ohlcv_df(min_len=self._config.timeperiod)
         ATRs = talib.ATR(
             ohlcv_df["hi"],
