@@ -5,8 +5,50 @@ import pandas as pd
 import talib
 
 
+class IOhlcvGetter:
+    def get_ohlcv_df(self, min_len: int) -> pd.DataFrame:
+        ...
+
+
+@dataclass
+class ATRMakePriceCalculatorConfig:
+    timeperiod: int
+    diff_k: float
+
+
+class ATRMakePriceCalculator:
+    def __init__(
+        self,
+        ohlcv_getter: IOhlcvGetter,
+        config: ATRMakePriceCalculatorConfig,
+    ):
+        self._ohlcv_getter = ohlcv_getter
+        self._config = config
+
+        self._logger = getLogger(__class__.__name__)
+
+    async def ask_bid_prices(self):
+        ohlcv_df = self._ohlcv_getter.get_ohlcv_df(min_len=self._config.timeperiod)
+        ATRs = talib.ATR(
+            ohlcv_df["hi"],
+            ohlcv_df["lo"],
+            ohlcv_df["cl"],
+            timeperiod=self._config.timeperiod,
+        )
+        ATR = ATRs[-1]
+        diff = ATR * self._config.diff_k
+        ask_price = ATR + diff
+        bid_price = ATR - diff
+        return ask_price, bid_price
+
+
 class IPositionGetter:
     def current_position(self) -> float:
+        ...
+
+
+class IMakePriceCalculator:
+    def ask_bid_prices(self) -> tuple:
         ...
 
 
@@ -23,49 +65,29 @@ class IMaker:
         ...
 
 
-class IOhlcvGetter:
-    def get_ohlcv_df(self, min_len: int) -> pd.DataFrame:
-        ...
-
-
 @dataclass
-class ATRMarketMakerConfig:
-    ATR_len: int
+class MarketMakerConfig:
     symbol: str
     unit_lot_size: float
-    min_lot_size: float
 
 
-class ATRMarketMaker:
+class MarketMaker:
     def __init__(
         self,
         position_getter: IPositionGetter,
-        ohlcv_getter: IOhlcvGetter,
+        make_price_calculator: IMakePriceCalculator,
         maker: IMaker,
-        config: ATRMarketMakerConfig,
+        config: MarketMakerConfig,
     ):
         self._position_getter = position_getter
-        self._ohlcv_getter = ohlcv_getter
+        self._make_price_calculator = make_price_calculator
         self._maker = maker
         self._config = config
 
         self._logger = getLogger(__class__.__name__)
 
-        self._current_order_id: str = None
-
     async def execute(self):
-        # price
-        ohlcv_df = self._ohlcv_getter.get_ohlcv_df(min_len=self._config.ATR_len)
-
-        ATRs = talib.ATR(
-            ohlcv_df["hi"],
-            ohlcv_df["lo"],
-            ohlcv_df["cl"],
-            timeperiod=self._config.ATR_len,
-        )
-        ATR = ATRs[-1]
-        ask_price = ATR * (1 + self._config.ask_price_diff_ratio)
-        bid_price = ATR * (1 - self._config.bid_price_diff_ratio)
+        ask_price, bid_price = self._make_price_calculator.ask_bid_prices()
 
         # cancel order
         # TODO: use replace instead of cancel
