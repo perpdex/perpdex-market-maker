@@ -1,0 +1,16 @@
+version: 1
+formatters:
+  default:
+    # [2022-01-01 16:25:12.865][MyClass][INFO] message
+    format: '[%(asctime)s][%(name)s][%(levelname)s] %(message)s'
+handlers:
+  stream:
+    class: logging.StreamHandler
+    formatter: default
+    stream: ext://sys.stdout
+root:
+  level: DEBUG 
+  handlers: [stream]
+loggers:
+  ccxt.base.exchange:
+    level: INFO

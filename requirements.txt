@@ -1,0 +1,15 @@
+black
+ccxt
+fire
+flake8
+numpy
+pandas
+pysha3
+pytest
+pytest-asyncio
+pytest-cov
+pytest-dotenv
+pytest-mock
+python-dotenv
+PyYAML
+web3

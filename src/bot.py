@@ -26,7 +26,7 @@ class Bot:
         self,
         config: BotConfig,
         market_maker: IMarketMaker,
-        info_logger: IInfoLogger,
+        info_logger: IInfoLogger = None,
     ):
         self._config = config
         self._market_maker = market_maker
@@ -75,6 +75,7 @@ class Bot:
     async def _log_info(self):
         self._logger.debug("start _log_info")
         while True:
-            self._info_logger.log()
+            if self._info_logger is not None:
+                self._info_logger.log()
             self._logger.debug("bot info logged")
             await asyncio.sleep(self._config.balance_loop_sec)
