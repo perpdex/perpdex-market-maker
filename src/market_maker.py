@@ -207,12 +207,10 @@ class MarketMaker:
         self._maker.cancel_all_orders(symbol=self._config.symbol)
 
         if self._config.inverse:
-            ask_price = 1 / ask_price
-            bid_price = 1 / bid_price
             # bid(short) order
             self._maker.post_limit_order(
                 symbol=self._config.symbol,
-                side_int=1,  # inversed
+                side_int=-1,
                 size=ask_size,
                 price=ask_price,
             )
@@ -220,7 +218,7 @@ class MarketMaker:
             # ask(long) order
             self._maker.post_limit_order(
                 symbol=self._config.symbol,
-                side_int=-1,  # inversed
+                side_int=1,
                 size=bid_size,
                 price=bid_price,
             )

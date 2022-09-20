@@ -46,6 +46,7 @@ def create_market_maker_bot() -> Bot:
         config=perpdex.PerpdexOrdererConfig(
             market_contract_abi_json_filepaths=[_market_contract_filepath],
             exchange_contract_abi_json_filepath=_exchange_contract_filepath,
+            inverse=perpdex_is_inverse,
             tx_options=tx_options,
         ),
     )

@@ -53,6 +53,7 @@ class PerpdexContractTicker:
 class PerpdexOrdererConfig:
     market_contract_abi_json_filepaths: list
     exchange_contract_abi_json_filepath: str
+    inverse: bool
     tx_options: dict = field(default_factory=dict)
 
 
@@ -86,7 +87,7 @@ class PerpdexOrderer:
         ).call()
         self._logger.debug(f"Bid orderIds {order_ids}")
         for order_id in order_ids:
-            self.cancel_limit_order(symbol=symbol, side_int=1, order_id=order_id)
+            self.cancel_limit_order(symbol=symbol, side_int=-1, order_id=order_id)
 
     def cancel_all_ask_orders(self, symbol: str):
         market_contract = self._symbol_to_market_contract[symbol]
@@ -108,15 +109,14 @@ class PerpdexOrderer:
         method_call = self._exchange_contract.functions.cancelLimitOrder(
             dict(
                 market=market_contract.address,
-                isBid=side_int > 0,
+                isBid=side_int < 0 if self._config.inverse else side_int > 0,
                 orderId=order_id,
                 deadline=_get_deadline(),
             )
         )
 
         try:
-            tx_hash = method_call.transact(self._config.tx_options)
-            self._w3.eth.wait_for_transaction_receipt(tx_hash)
+            self._transact_with_retry(method_call, 3, "will retry cancel_limit_order")
             self._logger.debug("cancel_limit_order finish")
         except web3.exceptions.ContractLogicError as e:
             if "OBL_CO: already fully executed" in str(e):
@@ -137,6 +137,8 @@ class PerpdexOrderer:
                 symbol, side_int, size, price, side_int > 0
             )
         )
+        if size == 0:
+            self._logger.debug(f"{size=} is zero. will skip")
 
         assert side_int != 0
 
@@ -148,12 +150,13 @@ class PerpdexOrderer:
 
         # calculate amount with decimals from size
         amount = int(size * (10**DECIMALS))
+        price = 1 / price if self._config.inverse else price
         priceX96 = int(price * Q96)
 
         method_call = self._exchange_contract.functions.createLimitOrder(
             dict(
                 market=market_contract.address,
-                isBid=side_int > 0,
+                isBid=side_int < 0 if self._config.inverse else side_int > 0,
                 base=amount,
                 priceX96=priceX96,
                 deadline=_get_deadline(),
@@ -161,20 +164,8 @@ class PerpdexOrderer:
             )
         )
 
-        retry = 3
-        while retry > 0:
-            try:
-                tx_hash = method_call.transact(self._config.tx_options)
-                self._w3.eth.wait_for_transaction_receipt(tx_hash)
-                self._logger.debug("post_limit_order finish")
-                break
-            except ValueError as e:
-                # nonce too low
-                self._logger.error(e, exc_info=True)
-                self._logger.info("will retry post_limit_order")
-                retry -= 1
-                if retry == 0:
-                    raise e
+        self._transact_with_retry(method_call, 3, "will retry post_limit_order")
+        self._logger.debug("post_limit_order finish")
 
     def post_market_order(self, symbol: str, side_int: int, size: float):
         self._logger.info(
@@ -237,6 +228,25 @@ class PerpdexOrderer:
             tx_hash = method_call.transact(self._config.tx_options)
             self._w3.eth.wait_for_transaction_receipt(tx_hash)
             break
+
+    def _transact_with_retry(
+        self, method_call, retry_num: int, retry_message: str = ""
+    ):
+        while retry_num > 0:
+            try:
+                tx_hash = method_call.transact(self._config.tx_options)
+                self._w3.eth.wait_for_transaction_receipt(tx_hash)
+                break
+            except ValueError as e:
+                # nonce too low
+                if "nonce too low" in str(e):
+                    self._logger.error(e)
+                    retry_num -= 1
+                    if retry_num == 0:
+                        raise e
+                    self._logger.info(f"{retry_num=}. {retry_message}")
+                else:
+                    raise e
 
 
 @dataclass
