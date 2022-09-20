@@ -87,7 +87,7 @@ class PerpdexOrderer:
         ).call()
         self._logger.debug(f"Bid orderIds {order_ids}")
         for order_id in order_ids:
-            self.cancel_limit_order(symbol=symbol, side_int=-1, order_id=order_id)
+            self.cancel_limit_order(symbol=symbol, side_int=1, order_id=order_id)
 
     def cancel_all_ask_orders(self, symbol: str):
         market_contract = self._symbol_to_market_contract[symbol]
@@ -98,7 +98,7 @@ class PerpdexOrderer:
         ).call()
         self._logger.debug(f"Ask orderIds {order_ids}")
         for order_id in order_ids:
-            self.cancel_limit_order(symbol=symbol, side_int=1, order_id=order_id)
+            self.cancel_limit_order(symbol=symbol, side_int=-1, order_id=order_id)
 
     def cancel_limit_order(self, symbol: str, side_int: int, order_id: str):
         self._logger.debug(
